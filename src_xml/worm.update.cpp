@@ -5,7 +5,7 @@ void worm::update() {
   
   size_t Nupd = 0;
   do {
-    double q = rnd(MyGenerator);
+    double q = rnd(RNG);
     int a;
     if (worm_diag) {
       if (q < update_prob_cuml[insertworm]) {
@@ -82,8 +82,8 @@ int worm::INSERTWORM() {
 
   worm_dtime = 0;
   mZ_dns += 1.;
-  SiteIndex isite=static_cast<SiteIndex>(rnd(MyGenerator)*Nsites);
-  double start_time=rnd(MyGenerator)*beta;
+  SiteIndex isite=static_cast<SiteIndex>(rnd(RNG)*Nsites);
+  double start_time=rnd(RNG)*beta;
 #ifdef DEBUGMODE
   cout << "INSERTWORM : isite " << isite << "\t start_time "<< start_time << "\n";
 #endif
@@ -108,9 +108,9 @@ int worm::INSERTWORM() {
   }
 
   
-  int worm_dir = ( (rnd(MyGenerator) < 0.5) ? 1 : -1 );
+  int worm_dir = ( (rnd(RNG) < 0.5) ? 1 : -1 );
   StateType n_out = cycle_it->before();
-  StateType n_mid = n_out + ((rnd(MyGenerator) < 0.5) ? 1 : -1);
+  StateType n_mid = n_out + ((rnd(RNG) < 0.5) ? 1 : -1);
 #ifdef UNISYS
   if (!range_check(n_mid)) return impossible;
 #else
@@ -134,9 +134,9 @@ int worm::INSERTWORM() {
 #ifdef DEBUGMODE
       cout << "INSERTWORM accepted " << cycle_it->time() << "\t" << passed_dummy << "\t ratio : " << ratio << "\n";
 #endif
-    Element_t lower_kink(n_out, n_mid, isite, start_time, -1);
+    Element lower_kink(n_out, n_mid, isite, start_time, -1, Lattice.num_neighbors(isite));
 
-    Element_t upper_kink(n_mid, n_out, isite, start_time, -1);
+    Element upper_kink(n_mid, n_out, isite, start_time, -1, Lattice.num_neighbors(isite));
     worm_head_it = operator_string[isite].insert(cycle_it, upper_kink);
     find_assoc_insert(isite, worm_head_it,0);
     worm_tail_it = operator_string[isite].insert(worm_head_it, lower_kink);
@@ -174,7 +174,7 @@ int worm::MOVEWORM() {
   std::cout << "# Welcome to MOVEWORM.\n";
 #endif
   
-  int dir = (rnd(MyGenerator) < 0.5 ? 1 : -1);
+  int dir = (rnd(RNG) < 0.5 ? 1 : -1);
   
   SiteIndex isite = worm_head_it->link();
   Diagram_type::iterator itn = worm_head_it;
@@ -191,8 +191,8 @@ int worm::MOVEWORM() {
        if (worm_meas_densmat) {
          if ( itn->color() < 0 ) return impossible; // cannot pass worm tail
          
-         for (size_t const& j : zc[isite]) {
-            if (nb[isite][j] == worm_tail_it->link() ) {
+         for (size_t j = 0; j < Lattice.num_neighbors(isite); ++j) {
+            if (Lattice.neighbor(isite,j) == worm_tail_it->link()) {
               size_t oppdir = opposite_direction[isite][j];
               Diagram_type::iterator it_nb = worm_head_it->get_assoc(j);
               Diagram_type::iterator it_up = it_nb;
@@ -207,18 +207,17 @@ int worm::MOVEWORM() {
        }
        else if (worm_passes_nb_kink) {
          Diagram_type::iterator it_nb, it_up;
-         for (auto const& zci : zc[worm_head_it->link()]) {
-           SiteIndex adj_site = nb[worm_head_it->link()][zci];
-           it_nb = worm_head_it->get_assoc(zci) ;
+         for (size_t j = 0; j < Lattice.num_neighbors(worm_head_it->link()); ++j) {
+           SiteIndex adj_site = Lattice.neighbor(worm_head_it->link(), j);
+           it_nb = worm_head_it->get_assoc(j);
            it_up = it_nb;
            ++it_up; if (it_up == operator_string[adj_site].end()) it_up = operator_string[adj_site].begin();
-           size_t oppdir = opposite_direction[worm_head_it->link()][zci];
+           size_t oppdir = opposite_direction[worm_head_it->link()][j];
            if (!is_not_close(it_nb->time(), worm_head_it->time(), 2*tol)) {
-                worm_head_it->set_assoc(zci, it_up);
+                worm_head_it->set_assoc(j, it_up);
                 it_nb->set_assoc(oppdir, worm_head_it);
            }
          }
-
          worm_at_stop = +1;
        }
        // when measuring density matrix on other site : no problem
@@ -256,16 +255,18 @@ int worm::MOVEWORM() {
        tmax = nbtime[zcmax];
        dt_min = dtime[zcmax];
      }
-     for (size_t const& i : zc[isite]) if (dtime[i] < dt_min) {
-       dt_min = dtime[i];
-       nb_next = i;
-       tmax = nbtime[i];
+     for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+       if (dtime[i] < dt_min) {
+         dt_min = dtime[i];
+         nb_next = i;
+         tmax = nbtime[i];
+       }
      }
     
 
 #ifdef DEBUGMODE 
      cout << "# MOVEWORM dir == +1 tmax " << tmax << "\tworm_meas_densmat " << ( worm_meas_densmat ? "true" : "false") << "\n";
-     for (auto const& i : zc[isite]) cout << "# MOVEWORM dir == +1 nb, dtime, nbtime " << i << "\t" << dtime[i] << "\t" << nbtime[i] << "\n";
+     for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) cout << "# MOVEWORM dir == +1 nb, dtime, nbtime " << i << "\t" << dtime[i] << "\t" << nbtime[i] << "\n";
      cout << "# MOVEWORM dir == +1 nb, dtime, nbtime " << zcmax << "\t" << dtime[zcmax] << "\t" << nbtime[zcmax] << "\n";
 #endif
 
@@ -276,12 +277,12 @@ int worm::MOVEWORM() {
      double E_L = Diag_energy(isite, n_L, nbval);
      double ratio, pexp, en_nom, en_denom;
      if (E_R > E_L) {
-       pexp = -log(rnd(MyGenerator))/E_off;
+       pexp = -log(rnd(RNG))/E_off;
        en_denom = (tau > pexp || abs(pexp-tau) < dtol) ?  E_off : 1.;
        en_nom = (worm_at_stop == 0) ? E_R - E_L + E_off : 1.;
      }
      else {
-       pexp = -log(rnd(MyGenerator)) / (E_L - E_R + E_off);
+       pexp = -log(rnd(RNG)) / (E_L - E_R + E_off);
        en_denom = (tau > pexp || abs(pexp-tau) < dtol) ? (E_L - E_R + E_off) : 1.;
        en_nom = (worm_at_stop == 0) ? E_off : 1.;
      }
@@ -335,8 +336,8 @@ int worm::MOVEWORM() {
          
          Diagram_type::iterator it_up = worm_head_it;
          ++it_up; if (it_up == operator_string[isite].end()) it_up = operator_string[isite].begin();
-         for (size_t const& j : zc[isite]) {
-           if (nb[isite][j] == worm_tail_it->link()) {
+         for (size_t j = 0; j < Lattice.num_neighbors(isite); ++j) {
+           if (Lattice.neighbor(isite, j) == worm_tail_it->link()) {
              size_t oppdir = opposite_direction[isite][j];
              worm_head_it->set_assoc(j, worm_tail_it);
              worm_tail_it->set_assoc(oppdir, it_up);
@@ -352,14 +353,14 @@ int worm::MOVEWORM() {
          Diagram_type::iterator it_up = worm_head_it;
          ++it_up; if (it_up == operator_string[isite].end()) it_up = operator_string[isite].begin();
          Diagram_type::iterator it_nb;
-         for (auto const& zci : zc[isite]) {
-           SiteIndex adj_site =nb[isite][zci];
-           it_nb = worm_head_it->get_assoc(zci);
+         for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+           SiteIndex adj_site = Lattice.neighbor(isite, i);
+           it_nb = worm_head_it->get_assoc(i);
            if (it_nb == operator_string[adj_site].begin()) it_nb = operator_string[adj_site].end();
            --it_nb;
-           size_t oppdir = opposite_direction[worm_head_it->link()][zci];
+           size_t oppdir = opposite_direction[worm_head_it->link()][i];
            if (!is_not_close(it_nb->time(), worm_head_it->time(), 2*tol)) {
-                worm_head_it->set_assoc(zci, it_nb);
+                worm_head_it->set_assoc(i, it_nb);
                 it_nb->set_assoc(oppdir, it_up );
            }
          }
@@ -400,14 +401,16 @@ int worm::MOVEWORM() {
        tmax = nbtime[zcmax];
        dt_min = dtime[zcmax];
      }
-     for (size_t const& i : zc[isite]) if (dtime[i] < dt_min) {
-       dt_min = dtime[i];
-       nb_next = i;
-       tmax = nbtime[i];
+     for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+        if (dtime[i] < dt_min) {
+          dt_min = dtime[i];
+          nb_next = i;
+          tmax = nbtime[i];
+        }
      }
 #ifdef DEBUGMODE
      cout << "# MOVEWORM dir == -1, tmax " << tmax << "\tworm_meas_densmat " << ( worm_meas_densmat ? "true" : "false") << "\n";
-     for (size_t const& i : zc[isite]) cout << "# MOVEWORM dir == -1, nb, dtime, nbtime " << i << "\t" << dtime[i] << "\t" << nbtime[i] << "\n";
+     for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) cout << "# MOVEWORM dir == -1, nb, dtime, nbtime " << i << "\t" << dtime[i] << "\t" << nbtime[i] << "\n";
      cout << "# MOVEWORM dir == -1, nb, dtime, nbtime " << zcmax << "\t" << dtime[zcmax] << "\t" << nbtime[zcmax] << "\n";
      //char ch; cin >> ch;
 #endif
@@ -419,13 +422,13 @@ int worm::MOVEWORM() {
      double E_R = Diag_energy(isite, n_R, nbval );
      double pexp, ratio, en_nom, en_denom;
      if (E_R > E_L) {
-       pexp = -log(rnd(MyGenerator)) / (E_R - E_L + E_off);
+       pexp = -log(rnd(RNG)) / (E_R - E_L + E_off);
        //ratio = E_off/ (E_R - E_L + E_off);
        en_denom = (tau > pexp || abs(pexp-tau) < dtol) ? E_R - E_L + E_off : 1.;
        en_nom = (worm_at_stop == 0) ? E_off : 1.;
      }
      else {
-       pexp = -log(rnd(MyGenerator)) / (E_off);
+       pexp = -log(rnd(RNG)) / (E_off);
        en_denom = (tau > pexp || abs(pexp-tau) < dtol) ? E_off : 1.;
        en_nom = (worm_at_stop == 0) ? E_L - E_R + E_off : 1.;
      }
@@ -493,15 +496,14 @@ int worm::INSERTKINK() {
   SiteIndex isite = worm_head_it->link();
 
   // choose a direction (temporal)
-  int dir = ( (rnd(MyGenerator) < 0.5) ? -1 : 1 );
+  int dir = ( (rnd(RNG) < 0.5) ? -1 : 1 );
   
   // choose a neighbor (spatial)
-  size_t dirIndex = static_cast<size_t> (rnd(MyGenerator) * zc[isite].size());
-  size_t nbs = zc[isite][dirIndex];
-  SiteType adj_site = nb[isite][nbs];
+  size_t nbk = static_cast<size_t> (rnd(RNG) * Lattice.num_neighbors(isite));
+  SiteIndex adj_site = Lattice.neighbor(isite, nbk);
 
 #ifdef DEBUGMODE
-  cout << "INSERTKINK dir : "<< dir << "\tnbs " << nbs <<"\tadj_site " << adj_site << "\n";
+  cout << "INSERTKINK dir : "<< dir << "\tnbk " << nbk <<"\tadj_site " << adj_site << "\n";
 #endif
   
   StateType n_up = worm_head_it->after();
@@ -509,7 +511,7 @@ int worm::INSERTKINK() {
   StateType n_diff = n_up - n_down;
   
   // let's set the iterator on the adjacent site right
-  Diagram_type::iterator it_adj = worm_head_it->get_assoc(nbs);
+  Diagram_type::iterator it_adj = worm_head_it->get_assoc(nbk);
   Diagram_type::iterator itp_adj = it_adj;
 
   if (itp_adj == operator_string[adj_site].begin()) itp_adj = operator_string[adj_site].end();
@@ -538,13 +540,13 @@ int worm::INSERTKINK() {
   double weight_new = (dir == 1 ? bond_weight_offdiag[n_down][ n_up][ nbs_out][ nbs_mid] : bond_weight_offdiag[ n_down][ n_up][ nbs_mid][ nbs_out] );
   weight_new *= site_weight_offdiag[nbs_mid][ nbs_out];
 #else
-  BondIndex b = bond_index[isite][ nbs];
+  BondIndex b = Lattice.neighbor_bond(isite, nbk);
   double weight_old = MyModel->site_weight_offdiag(isite, n_down, n_up);
   double weight_new = (dir == 1 ? MyModel->bond_weight_offdiag(b, n_down, n_up, nbs_out, nbs_mid) : MyModel->bond_weight_offdiag(b, n_down, n_up, nbs_mid, nbs_out) );
   weight_new *= MyModel->site_weight_offdiag(adj_site, nbs_mid, nbs_out);
 #endif
     
-  double ratio = 2 * zc[isite].size() * weight_new /weight_old * update_prob[deletekink] / (update_prob[insertkink]);
+  double ratio = 2 * Lattice.num_neighbors(isite) * weight_new /weight_old * update_prob[deletekink] / (update_prob[insertkink]);
   
   
 #ifdef DEBUGMODE
@@ -560,8 +562,8 @@ int worm::INSERTKINK() {
    
     // insert the interaction : iw on the worm site, change the properties of the worm_head_it and insert a new kink on the adj site + a new worm there
 
-    Element_t new_elem1(nbs_mid, nbs_out, isite,     worm_head_it->time(),  1);
-    Element_t new_elem2(nbs_out, nbs_mid, adj_site,  worm_head_it->time(), -1);
+    Element new_elem1(nbs_mid, nbs_out, isite,     worm_head_it->time(),  1, Lattice.num_neighbors(isite));
+    Element new_elem2(nbs_out, nbs_mid, adj_site,  worm_head_it->time(), -1, Lattice.num_neighbors(adj_site));
     worm_head_it->color(1);
     worm_head_it->link(adj_site);
     
@@ -581,7 +583,7 @@ int worm::INSERTKINK() {
       find_assoc_insert(adj_site, it_adj, 0);
       Diagram_type::iterator new_it = operator_string[adj_site].insert(it_adj, new_elem2);
       find_assoc_insert(adj_site, new_it, -1);
-      worm_head_it->set_assoc(nbs, it_adj);
+      worm_head_it->set_assoc(nbk, it_adj);
       worm_head_it = new_it;
       worm_at_stop = -1;
     }
@@ -590,9 +592,8 @@ int worm::INSERTKINK() {
     nrvertex++;
     worm_passes_nb_kink = 0;
     worm_meas_densmat = false;
-    if (MyLatt->relNumbering(isite, adj_site)) {
-        mWinding += winding_element[nbs]  *  (n_down - n_up);
-    }
+    // XXX Winding numbers deactivated
+    //mWinding += (Lattice.coordinate(adj_site) - Lattice.coordinate(isite)) * (n_down - n_up);
     return accepted;
   }
   else {
@@ -640,10 +641,10 @@ int worm::DELETEKINK() {
   
   SiteIndex adj_site = it->link();                                    // site to wich the current site is linked
   size_t linkdir = 0;
-    for (auto const& zci : zc[isite]) {
-      linkdir = zci;
-      if (nb[isite][linkdir] == adj_site) break;
-    }
+  for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+    linkdir = i;
+    if (Lattice.neighbor(isite, linkdir) == adj_site) break;
+  }
   Diagram_type::iterator itlink = it->get_assoc(linkdir);
   StateType n_A_link = itlink->after();                               // occupancy on kink after  the hopping event on the linked site
   StateType n_B_link = itlink->before();                              // occupancy on kink before the hopping event on the linked site
@@ -653,23 +654,23 @@ int worm::DELETEKINK() {
   double weight_old = bond_weight_offdiag[it->before()][ it->after()][ n_B_link][ n_A_link] * site_weight_offdiag[worm_head_it->before()][ worm_head_it->after() ];
   double weight_new = site_weight_offdiag[n_B_link][ n_A_link];
 #else
-  BondIndex b = bond_index[isite][linkdir];               // bond index of the kink
+  BondIndex b = Lattice.neighbor_bond(isite, linkdir);               // bond index of the kink
   double weight_old = MyModel->bond_weight_offdiag(b, it->before(), it->after(), n_B_link, n_A_link) * MyModel->site_weight_offdiag(isite, worm_head_it->before(), worm_head_it->after() );
   double weight_new = MyModel->site_weight_offdiag(adj_site, n_B_link, n_A_link);
 #endif
     
-  double ratio = weight_new / weight_old * update_prob[insertkink] / (update_prob[deletekink] * 2* zc[isite].size());
+  double ratio = weight_new / weight_old * update_prob[insertkink] / (update_prob[deletekink] * 2 * Lattice.num_neighbors(isite));
   
   
 #ifdef DEBUGMODE
-   cout << "DELETEKINK : n_out " << n_out << "\tn_mid " << n_mid  << "\n";
-   cout << "DELETEKINK it->link() " << it->link() << "\tit->time()" << it->time() << "\n";
+  cout << "DELETEKINK : n_out " << n_out << "\tn_mid " << n_mid  << "\n";
+  cout << "DELETEKINK it->link() " << it->link() << "\tit->time()" << it->time() << "\n";
 #endif
 
   
 #ifdef DEBUGMODE
   
-   cout << "DELETEKINK : ratio " << ratio << "\t" << 1./ratio << "\n";
+  cout << "DELETEKINK : ratio " << ratio << "\t" << 1./ratio << "\n";
   cout << "DELETEKINK old weight, new weight : " << "\t" << weight_old << "\t" << weight_new << "\n";
 #endif
 
@@ -693,9 +694,8 @@ int worm::DELETEKINK() {
     worm_at_stop = 0;
     worm_passes_nb_kink = 0;
     worm_meas_densmat = false;
-    if (MyLatt->relNumbering(isite, adj_site)) {
-        mWinding += winding_element[linkdir] * (n_B_link - n_A_link);
-    }
+    // XXX Winding numbers deactivated
+    //mWinding += (Lattice.coordinate(adj_site) - Lattice.coordinate(isite)) * (n_B_link - n_A_link);
     return accepted;
   }
   else { // Metropolis rejection
@@ -705,7 +705,7 @@ int worm::DELETEKINK() {
 }
 
 
-void worm::PASS_DUMMY(const int dir, const SiteType isite) {
+void worm::PASS_DUMMY(const int dir, const SiteIndex isite) {
 #ifdef DEBUGMODE
   cout << "\n# PASSING DUMMY... dir = " << dir << "\n";
 #endif
@@ -714,16 +714,18 @@ void worm::PASS_DUMMY(const int dir, const SiteType isite) {
 #ifdef UNISYS
     double Ep_substract = site_weight_diag[old_dens];
     double Ep_add = site_weight_diag[new_dens];
-    for (size_t const& iz : zc[isite]) {
-      Ep_substract += bond_weight_diag[old_dens][dummy_it[nb[isite][iz]]->before()];
-      Ep_add += bond_weight_diag[new_dens][dummy_it[nb[isite][iz]]->before()];
+    for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+      Ep_substract += bond_weight_diag[old_dens][dummy_it[Lattice.neighbor(isite, i)]->before()];
+      Ep_add += bond_weight_diag[new_dens][dummy_it[Lattice.neighbor(isite, i)]->before()];
     }
 #else
     double Ep_substract = MyModel->site_weight_diag(isite, old_dens);
     double Ep_add = MyModel->site_weight_diag(isite, new_dens);
-    for (size_t const &iz : zc[isite]) {
-      Ep_substract += MyModel->bond_weight_diag(bond_index[isite][iz], old_dens, dummy_it[nb[isite][iz]]->before());
-      Ep_add += MyModel->bond_weight_diag(bond_index[isite][iz], new_dens, dummy_it[nb[isite][iz]]->before());
+    for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+      Ep_substract += MyModel->bond_weight_diag(Lattice.neighbor_bond(isite, i), old_dens, 
+                                                dummy_it[Lattice.neighbor(isite, i)]->before());
+      Ep_add += MyModel->bond_weight_diag(Lattice.neighbor_bond(isite, i), new_dens, 
+                                          dummy_it[Lattice.neighbor(isite, i)]->before());
     }
 #endif
 
@@ -741,7 +743,7 @@ void worm::PASS_DUMMY(const int dir, const SiteType isite) {
 
     dummy_it[isite]->before(new_dens);
     dummy_it[isite]->after(new_dens);
-    Element_t new_elem = *worm_head_it;
+    Element new_elem = *worm_head_it;
     find_assoc_delete(isite, worm_head_it);
     operator_string[isite].erase(worm_head_it);
     new_elem.time(0);
@@ -758,7 +760,7 @@ void worm::PASS_DUMMY(const int dir, const SiteType isite) {
 
     dummy_it[isite]->before(new_dens);
     dummy_it[isite]->after(new_dens);
-    Element_t new_elem = *worm_head_it;
+    Element new_elem = *worm_head_it;
     find_assoc_delete(isite, worm_head_it);
     operator_string[isite].erase(worm_head_it);
     new_elem.time(beta);
@@ -783,10 +785,10 @@ int worm::PASSINTERACTION(const int dir, const Diagram_type::iterator it) {
   StateType n_B = it->before();                                       // occupancy on kink before the hopping event on the current site
   SiteIndex adj_site = it->link();                                    // site to wich the current site is linked
   size_t linkdir = 0;
-    for (auto const& zci : zc[isite]) {
-      linkdir = zci;
-      if (nb[isite][linkdir] == adj_site) break;
-    }
+  for (size_t i = 0; i < Lattice.num_neighbors(isite); ++i) {
+    linkdir = i;
+    if (Lattice.neighbor(isite, linkdir) == adj_site) break;
+  }
   // TODO : assert linkdir is not out of bounds
   StateType n_A_link = it->get_assoc(linkdir)->after();               // occupancy on kink after  the hopping event on the linked site
   StateType n_B_link = it->get_assoc(linkdir)->before();              // occupancy on kink before the hopping event on the linked site
@@ -805,7 +807,7 @@ int worm::PASSINTERACTION(const int dir, const Diagram_type::iterator it) {
     double wgt_old = site_weight_offdiag[n_O][ n_B] * bond_weight_offdiag[n_B][ n_A][ n_B_link][ n_A_link];
     double wgt_new = site_weight_offdiag[n_B][ n_A] * bond_weight_offdiag[n_O][ n_B][ n_B_link][ n_A_link];
 #else
-    BondIndex b = bond_index[isite][linkdir];               // bond index of the kink
+    BondIndex b = Lattice.neighbor_bond(isite, linkdir);               // bond index of the kink
     double wgt_old = MyModel->site_weight_offdiag(isite, n_O, n_B) * MyModel->bond_weight_offdiag(b, n_B, n_A, n_B_link, n_A_link);
     double wgt_new = MyModel->site_weight_offdiag(isite, n_B, n_A) * MyModel->bond_weight_offdiag(b, n_O, n_B, n_B_link, n_A_link);
 #endif
@@ -814,7 +816,7 @@ int worm::PASSINTERACTION(const int dir, const Diagram_type::iterator it) {
     if (Metropolis(ratio)) {
       it->before(n_O);
       it->after(n_B);
-      Element_t new_elem = *worm_head_it;
+      Element new_elem = *worm_head_it;
       find_assoc_delete(isite, worm_head_it);
       operator_string[isite].erase(worm_head_it);
       new_elem.time(it->time());
@@ -841,7 +843,7 @@ int worm::PASSINTERACTION(const int dir, const Diagram_type::iterator it) {
     double wgt_new = site_weight_offdiag[n_B][ n_A] * bond_weight_offdiag[n_A][ n_O][ n_B_link][ n_A_link];
     
 #else
-    BondIndex b = bond_index[isite][linkdir];               // bond index of the kink
+    BondIndex b = Lattice.neighbor_bond(isite, linkdir);               // bond index of the kink
     double wgt_old = MyModel->site_weight_offdiag(isite, n_A, n_O) * MyModel->bond_weight_offdiag(b, n_B, n_A, n_B_link, n_A_link);
     double wgt_new = MyModel->site_weight_offdiag(isite, n_B, n_A) * MyModel->bond_weight_offdiag(b, n_A, n_O, n_B_link, n_A_link);
 #endif
@@ -855,7 +857,7 @@ int worm::PASSINTERACTION(const int dir, const Diagram_type::iterator it) {
 #endif
       it->before(n_A);
       it->after(n_O);
-      Element_t new_elem = *worm_head_it;
+      Element new_elem = *worm_head_it;
       find_assoc_delete(isite, worm_head_it);
       operator_string[isite].erase(worm_head_it);
       new_elem.time(it->time());

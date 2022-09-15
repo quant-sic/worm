@@ -1,17 +1,19 @@
 #pragma once
 
-#include "lattice.hpp"
 #include <math.h>
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <iterator>
 
+#include <alps/params.hpp>
+#include "lattice/graph_xml.hpp"
+
 class model {
 public:
   using StateType = int;
-  using SiteIndex = typename LATTICE::Base::SiteIndex;
-  using BondIndex = typename LATTICE::Base::BondIndex;
+  using SiteIndex = size_t;
+  using BondIndex = size_t;
 
   model(alps::params const& params) {
     model_name = params["model"].as<std::string>();

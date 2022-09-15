@@ -21,6 +21,8 @@ struct lattice {
     static const size_t dim = DIM;
     static const size_t n_basis = N_BASIS;
 
+    virtual ~lattice() {}
+
     //for readability 
     using SiteType = int;       //must allow value -1 for pseudo site which is used for non-uniform coordination number
     using SiteIndex = int;      //same here
@@ -31,8 +33,7 @@ struct lattice {
     using NeighborType = std::map<DirectionIndex, SiteIndex>;
 
     static void define_parameters(alps::params& params) {
-        params.define<std::string>("lattice", "chain", "name of the lattice")
-              .define<size_t>("Lx", 4, "number of unitcells along x axis of the lattice")
+        params.define<size_t>("Lx", 4, "number of unitcells along x axis of the lattice")
               .define<size_t>("Ly", 1, "number of unitcells along y axis of the lattice")
               .define<size_t>("Lz", 1, "number of unitcells along z axis of the lattice")
               .define<bool>("pbcx", true, "periodic boundary condition along x axis (PBC:1, OBC:0)")
@@ -256,7 +257,7 @@ struct cubic : lattice<3,1> {
         };
     }
 
-    void print_name(std::ostream& os) const {
+    void print_name(std::ostream& os) const override {
         os << "# lattice: Name                                     : cubic\n";
     };
 };
@@ -293,7 +294,7 @@ struct square : lattice<2,1> {
         };
     }
 
-    void print_name(std::ostream& os) const {
+    void print_name(std::ostream& os) const override {
         os << "# lattice: Name                                     : square\n";
     };
 };
@@ -325,7 +326,7 @@ struct chain : lattice<1,1> {
         };
     }
 
-    void print_name(std::ostream& os) const {
+    void print_name(std::ostream& os) const override {
         os << "# lattice: Name                                     : chain\n";
     };
 };
@@ -342,7 +343,7 @@ struct ladder : square {
         generate_lattice([&](size_t bs) {return define_unitcell(bs);});
     }
 
-    void print_name(std::ostream& os) const {
+    void print_name(std::ostream& os) const override {
         os << "# lattice: Name                                     : ladder\n";
     };
 };
@@ -383,7 +384,7 @@ struct honeycomb : lattice<2,2> {
         };
     }
 
-    void print_name(std::ostream& os) const {
+    void print_name(std::ostream& os) const override {
         os << "# lattice: Name                                     : honeycomb\n";
     };
 };
@@ -423,7 +424,7 @@ struct triangular : lattice<2,1> {
         };
     }
 
-        void print_name(std::ostream& os) const {
+        void print_name(std::ostream& os) const override {
         os << "# lattice: Name                                     : triangular\n";
     };
 };

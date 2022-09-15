@@ -6,7 +6,8 @@
 #pragma once
 
 
-#include "lattice.hpp"
+//#include "lattice.hpp"
+#include "lattice/graph_xml.hpp"
 #include "worm.Element.hpp"
 #include "model.hpp"
 #include <alps/mc/mcbase.hpp>
@@ -40,9 +41,6 @@ typedef boost::multi_array<int, 2> IMatrix;
 typedef boost::multi_array<int, 2>::index IMatrix_index;
 
 
-
-typedef Element Element_t;
-
 enum statistics_tag {
     impossible,
     rejected,
@@ -74,12 +72,9 @@ class worm : public alps::mcbase {
 public :
     static constexpr double tol = 1e-14;
     using StateType = model::StateType;
-    using SiteType = LATTICE::Base::SiteType;
-    using SiteIndex = LATTICE::Base::SiteIndex;
-    using BondType = LATTICE::Base::BondType;
-    using BondIndex = LATTICE::Base::BondIndex;
-    static const size_t zcmax = LATTICE::zcmax;
-    static const size_t latt_dim = LATTICE::Base::dim;
+    using SiteIndex = size_t;
+    using BondIndex = size_t;
+    
   
   worm(parameters_type const & parms, std::size_t seed_offset = 0);
     
@@ -120,7 +115,7 @@ public :
      }
  #endif
      if (x >= 1) return (true);
-     if (rnd(MyGenerator) < x) return (true);
+     if (rnd(RNG) < x) return (true);
      //if (random() < x) return (true);
      return (false);
    }
@@ -128,13 +123,11 @@ public :
   double Diag_energy(const SiteIndex s, const StateType n, const size_t dir, const size_t m) {
 #ifdef UNISYS
     double d = site_weight_diag[n-nmin];
-    if (nb[s][dir] != -1)
-        d  += bond_weight_diag[n-nmin][m-nmin];
+    d += bond_weight_diag[n-nmin][m-nmin];
     return d;
 #else
     double d = MyModel->site_weight_diag(s,n);
-    if (nb[s][dir] != -1)
-        d += MyModel->bond_weight_diag( bond_index[s][dir],n, m);
+    d += MyModel->bond_weight_diag(Lattice.neighbor_bond(s, dir), n, m);
     return d;
 #endif
   }
@@ -143,15 +136,13 @@ public :
 #ifdef UNISYS
     double d = site_weight_diag[n - nmin];
     for (size_t m=0 ; m < snb.size(); m++) {
-        if (nb[s][m] != -1)
-            d += bond_weight_diag[n-nmin][snb[m]-nmin];
+      d += bond_weight_diag[n-nmin][snb[m]-nmin];
     }
     return d;
 #else
     double d = MyModel->site_weight_diag(s,n);
     for (size_t i=0 ; i < snb.size(); i++) {
-        if (nb[s][i] != -1)
-            d+= MyModel->bond_weight_diag( bond_index[s][i],n, snb[i]);
+      d+= MyModel->bond_weight_diag(Lattice.neighbor_bond(s,i), n, snb[i]);
     }
     return d;
 #endif
@@ -171,7 +162,7 @@ public :
   int DELETEKINK();
   int GLUEWORM();
   int PASSINTERACTION(const int, Diagram_type::iterator);
-  void PASS_DUMMY(const int, const SiteType);
+  void PASS_DUMMY(const int, const SiteIndex);
   int UPDATE_DENSITYMATRIX();
   
   void output_final(const alps::results_type<worm>::type& results, alps::hdf5::archive& ar);
@@ -210,7 +201,6 @@ private:
 private :
   double dtol;
 
-  std::unique_ptr<LATTICE> MyLatt;
   std::unique_ptr<model> MyModel;
   std::string ModelClassifierName;
   
@@ -266,9 +256,6 @@ private :
   vector<double> av_state_sq;
   vector<double> av_green;
   vector<double> time_green;
-
-  LATTICE::Direction mWinding;
-  std::array<LATTICE::Direction, LATTICE::zcmax> winding_element;
   
   DMatrix update_statistics;
   vector<double> nbtime;
@@ -276,11 +263,18 @@ private :
   vector<StateType> nbval;
   
   // lattice variables
-  vector<vector<size_t>> zc;
-  SiteIndex Nsites;
-  IMatrix nb;
-  IMatrix bond_index;
+  lattice::basis basis;
+  //lattice::basis_t basis_inverse;
+  lattice::unitcell unitcell;
+  lattice::graph Lattice;
+  // XXX winding number deactivated
+  //lattice::coordinate_t mWinding;
+  size_t Nsites;
+  size_t Lengths[3];
+  size_t zcmax;
   IMatrix opposite_direction;
+  // lattice function for computing index for measurement of vector observables
+  size_t relNumbering(SiteIndex s1, SiteIndex s2) const;
 
   StateType nmin,nmax;
   std::vector<double> state_eval;
@@ -305,16 +299,34 @@ private :
   std::vector<double> hist_gt;
 #endif
   
-  mt19937 MyGenerator;
+  mt19937 RNG;
   uniform_real_distribution<double> rnd;
   
 };
+inline size_t worm::relNumbering(SiteIndex s1, SiteIndex s2) const {
+  double s1x = Lattice.coordinate(s1)(0);
+  double s2x = Lattice.coordinate(s2)(0);
+  size_t nx = size_t(s2x < s1x ? s2x + Lengths[0] - s1x  : s2x - s1x);
+  if (Lattice.dimension() > 1) {
+      double s1y = Lattice.coordinate(s1)(1);
+      double s2y = Lattice.coordinate(s2)(1);
+      size_t ny = size_t(s2y < s1y ? s2y + Lengths[1] - s1y  : s2y - s1y);
+      if (Lattice.dimension() > 2) {
+          double s1z = Lattice.coordinate(s1)(2);
+          double s2z = Lattice.coordinate(s2)(2);
+          size_t nz = size_t(s2z < s1z ? s2z + Lengths[2] - s1z  : s2z - s1z);
+          return nx + Lengths[0]*ny + Lengths[0]*Lengths[1]*nz;
+      }
+      return nx + Lengths[0]*ny;
+  }
+  return nx;
+}
 
 
 inline void worm::get_diaginfo_nb_pos(const SiteIndex s) {
   Diagram_type::iterator its, itp;
-  for (size_t const& i : zc[s]) {
-    SiteType snb = nb[s][i];
+  for (size_t i = 0; i < Lattice.num_neighbors(s); i++) {
+    SiteIndex snb = Lattice.neighbor(s, i);
     its = worm_head_it->get_assoc(i);
     itp = its;
     if (itp == operator_string[snb].begin()) itp=operator_string[snb].end();
@@ -338,8 +350,8 @@ inline void worm::get_diaginfo_nb_pos(const SiteIndex s) {
 
 inline void worm::get_diaginfo_nb_neg(const SiteIndex s) {
   Diagram_type::iterator its, itp;
-  for (size_t const& i : zc[s]) {
-    SiteType  snb =  nb[s][i];
+  for (size_t i = 0; i < Lattice.num_neighbors(s); i++) {
+    SiteIndex snb =  Lattice.neighbor(s, i);
     its = worm_head_it->get_assoc(i);
     itp = its;
     if (itp == operator_string[snb].begin()) itp=operator_string[snb].end();
