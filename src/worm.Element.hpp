@@ -214,8 +214,8 @@ class Element
   StateType mBefore;     // occupation on the site before the interaction
   StateType mAfter;      // occupation on the site after the interaction
   SiteIndex mLink;   // site to which element is linked
-  Diagram_type::iterator mAssoc[ZC];   // associations; i.e. iterator to the kink on nb sites that are equal or just greater in time
   int mColor;      // (1) boson interaction (-1) boson worm (0) dummy etc
+  Diagram_type::iterator mAssoc[ZC];   // associations; i.e. iterator to the kink on nb sites that are equal or just greater in time
 };
 
 
