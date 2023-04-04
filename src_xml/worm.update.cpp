@@ -492,6 +492,9 @@ int worm::INSERTKINK() {
   if (worm_at_stop != 0) return impossible;
   if (worm_meas_densmat) return impossible;
   if (worm_passes_nb_kink == 1) return impossible;
+  for (size_t const& j : zc[worm_head_it->link()]) {
+    if (!is_not_close(worm_head_it->time(), worm_head_it->get_assoc(j)->time(), 2*dtol)) return impossible;
+  } 
   
   SiteIndex isite = worm_head_it->link();
 
