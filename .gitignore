@@ -7,7 +7,6 @@ run*
 *.out
 *.txt
 !CMakeLists.txt
-*.py
 !compare.py
 ed
 *.swp
