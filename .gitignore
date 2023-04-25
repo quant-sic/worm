@@ -21,3 +21,6 @@ paper/worm.bbl
 paper/worm.blg
 
 runs
+alpscore
+*.pyc
+!build_non_uniform.sh
