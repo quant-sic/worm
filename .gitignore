@@ -24,3 +24,4 @@ runs
 alpscore
 *.pyc
 !build_non_uniform.sh
+*.lock
