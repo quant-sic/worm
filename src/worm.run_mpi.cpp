@@ -34,6 +34,9 @@ int main(int argc, char **argv)
     std::string checkpoint_file = parameters["checkpoint"].as<std::string>();
     if (!is_master)
       checkpoint_file += "." + std::to_string(rank);
+
+    std::cout << "is restored: " << parameters.is_restored() << std::endl;
+
     if (parameters.is_restored())
     {
       std::cout << "# Restoring checkpoint from " << checkpoint_file << " on rank " << rank << std::endl;

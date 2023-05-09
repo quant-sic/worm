@@ -31,6 +31,7 @@ public:
 
 #ifndef UNISYS
   virtual void user_set_params(const std::vector<double> &, const std::vector<std::size_t> &) = 0;
+  virtual std::vector<double> user_get_params() = 0;
 #endif
 
   virtual double stateval(const StateType n) const = 0;
@@ -160,6 +161,16 @@ public:
     std::copy(p.begin() + dims[0], p.begin() + dims[0] + dims[1], std::back_inserter(U_on));
     std::copy(p.begin() + dims[0] + dims[1], p.begin() + dims[0] + dims[1] + dims[2], std::back_inserter(mu));
     std::copy(p.begin() + dims[0] + dims[1] + dims[2], p.end(), std::back_inserter(V_nn));
+  }
+
+  std::vector<double> user_get_params() override
+  {
+    std::vector<double> p;
+    std::copy(t_hop.begin(), t_hop.end(), std::back_inserter(p));
+    std::copy(U_on.begin(), U_on.end(), std::back_inserter(p));
+    std::copy(mu.begin(), mu.end(), std::back_inserter(p));
+    std::copy(V_nn.begin(), V_nn.end(), std::back_inserter(p));
+    return p;
   }
 #endif
 
@@ -305,6 +316,15 @@ public:
     std::copy(p.begin(), p.begin() + dims[0], std::back_inserter(Jpm));
     std::copy(p.begin() + dims[0], p.begin() + dims[0] + dims[1], std::back_inserter(Jzz));
     std::copy(p.begin() + dims[0] + dims[1], p.end(), std::back_inserter(h));
+  }
+
+  std::vector<double> user_get_params() override
+  {
+    std::vector<double> p;
+    std::copy(Jpm.begin(), Jpm.end(), std::back_inserter(p));
+    std::copy(Jzz.begin(), Jzz.end(), std::back_inserter(p));
+    std::copy(h.begin(), h.end(), std::back_inserter(p));
+    return p;
   }
 #endif
 

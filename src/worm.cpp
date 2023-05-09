@@ -58,12 +58,14 @@ void worm::define_parameters(parameters_type &parameters)
   {
     throw std::runtime_error("Invalid Model \"" + ModelClassifierName + "\"");
   }
+  std::cout << parameters << std::endl;
 }
 
 // Creates a new simulation.
 // We always need the parameters and the seed as we need to pass it to
 // the alps::mcbase constructor. We also initialize our internal state,
 // mainly using values from the parameters.
+
 worm::worm(parameters_type const &parameters, std::size_t seed_offset) : alps::mcbase(parameters, seed_offset), sweeps(0), thermalization_sweeps(int(parameters["thermalization"])), total_sweeps(parameters["sweeps"]), runtimelimit(parameters["runtimelimit"]), reset_statistics(parameters["reset_statistics"]), beta(parameters["beta"]), E_off(parameters["E_off"]), C_worm(parameters["C_worm"]), canonical(parameters["canonical"]), Ntest(parameters["Ntest"]), Nsave(parameters["Nsave"]), Nmeasure(parameters["Nmeasure"]), Nmeasure2(parameters["Nmeasure2"]), update_statistics(boost::extents[statistics_tag::statistics_count][update_tag::update_count]), nbtime(zcmax + 1), dtime(zcmax + 1), nbval(zcmax), MyGenerator(std::size_t(parameters["seed"]) + seed_offset)
 {
 
@@ -150,6 +152,10 @@ worm::worm(parameters_type const &parameters, std::size_t seed_offset) : alps::m
       << alps::accumulators::LogBinningAccumulator<vector<double>>("Density_Matrix")
       //<< alps::accumulators::LogBinningAccumulator<vector<double> >("Density_Matrix2")
       << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun")
+      << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun_local_0")
+      << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun_local_1")
+      << alps::accumulators::LogBinningAccumulator<vector<double>>("Density_Distribution_squared")
+
       << alps::accumulators::LogBinningAccumulator<vector<double>>("Winding_number_squared")
 // #endif
 #ifdef CAN_WINDOW
@@ -299,12 +305,11 @@ void worm::initialize(string h5_filename)
   if (ModelClassifierName == "BoseHubbard")
   {
     std::vector<double> mu;
+    std::vector<double> t_;
+    std::vector<double> U_;
+    std::vector<double> V_;
+
     iar["/mu"] >> mu;
-
-    double t_;
-    double U_;
-    double V_;
-
     iar["/t_hop"] >> t_;
     iar["/U_on"] >> U_;
     iar["/V_nn"] >> V_;
@@ -312,13 +317,13 @@ void worm::initialize(string h5_filename)
     std::vector<std::size_t> dims{Nbonds, Ns, Ns, Nbonds};
     std::vector<double> val;
     for (size_t i = 0; i < dims[0]; i++)
-      val.push_back(t_);
+      val.push_back(t_[i]);
     for (size_t i = 0; i < dims[1]; i++)
-      val.push_back(U_);
+      val.push_back(U_[i]);
     for (size_t i = 0; i < dims[2]; i++)
       val.push_back(mu[i]);
     for (size_t i = 0; i < dims[3]; i++)
-      val.push_back(V_);
+      val.push_back(V_[i]);
     MyModel->user_set_params(val, dims);
   }
   else
@@ -482,6 +487,10 @@ void worm::force_reset_statistics()
     reset(measurements["Density_Matrix"]);
     // reset(measurements["Density_Matrix2"]);
     reset(measurements["DensDens_CorrFun"]);
+    reset(measurements["DensDens_CorrFun_local_0"]);
+    reset(measurements["DensDens_CorrFun_local_1"]);
+    reset(measurements["Density_Distribution_squared"]);
+
     reset(measurements["Winding_number_squared"]);
     for (size_t i = 0; i < hist_densmat.size(); i++)
     {
@@ -515,15 +524,25 @@ void worm::measure_corrfun()
   if (LATTICE::dim > 2 && !parameters["pbcz"])
     return;
   vector<double> hist_dd(hist_densmat.size(), 0.);
+  vector<double> hist_dd_local_0(hist_densmat.size(), 0.);
+  vector<double> hist_dd_local_1(hist_densmat.size(), 0.);
+  vector<double> hist_dd_squared(hist_densmat.size(), 0.);
+
   vector<double> dens_distr(Nsites);
   for (auto i = 0; i < Nsites; i++)
   {
+    double dens_at_i = state_eval[dummy_it[i]->before()];
     size_t dist = MyLatt->relNumbering(0, i);
+
     if (hist_dd[dist] == 0)
     {
-      hist_dd[dist] = state_eval[dummy_it[0]->before()] * state_eval[dummy_it[i]->before()];
+      hist_dd[dist] = state_eval[dummy_it[0]->before()] * dens_at_i;
     }
-    dens_distr[i] = state_eval[dummy_it[i]->before()];
+
+    hist_dd_local_0[i] = dens_at_i * state_eval[dummy_it[MyLatt->nb(i, 0)]->before()];
+    hist_dd_local_1[1] = dens_at_i * state_eval[dummy_it[MyLatt->nb(i, 1)]->before()];
+    dens_distr[i] = dens_at_i;
+    hist_dd_squared[i] = dens_at_i * dens_at_i;
   }
 
   vector<double> hist_dm(hist_densmat.size());
@@ -538,6 +557,11 @@ void worm::measure_corrfun()
   measurements["Density_Matrix"] << hist_dm;
   // measurements["Density_Matrix2"] << hist_dm2;
   measurements["DensDens_CorrFun"] << hist_dd;
+  measurements["DensDens_CorrFun_local_0"] << hist_dd_local_0;
+  measurements["DensDens_CorrFun_local_1"] << hist_dd_local_1;
+
+  measurements["Density_Distribution_squared"] << hist_dd_squared;
+
   for (size_t i = 0; i < hist_densmat.size(); i++)
   {
     hist_densmat[i] = 0;

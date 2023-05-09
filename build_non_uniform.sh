@@ -21,6 +21,8 @@ else
     mkdir build
     cd build
 
+    # export HDF5_ROOT=~/worm/hdf/HDF5-1.12.1-Linux/HDF_Group/HDF5/1.12.1/
+
     # if eigen headers are given, use them
     if ! [ -z "$1" ]; then
         cmake ../ -DCMAKE_INSTALL_PREFIX="$ALPSCore_DIR"/install -DEIGEN3_INCLUDE_DIR="$1"

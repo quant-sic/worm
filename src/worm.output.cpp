@@ -82,6 +82,18 @@ void worm::save(alps::hdf5::archive &ar) const
 
   std::vector<double> wind_vec(mWinding.data(), mWinding.data() + mWinding.size());
 
+  std::vector<double> params = MyModel->user_get_params();
+
+  // print params
+  // std::cout << "params: ";
+  // for (auto const &p : params)
+  //   std::cout << p << " ";
+
+  // std::cout << params << std::endl;
+
+  // save params
+  ar["checkpoint/site_arrays"] << params;
+
   ar["checkpoint/random"] << engine_ss.str();
   ar["checkpoint/sweeps"] << sweeps;
   ar["checkpoint/counter"] << counter;
@@ -120,6 +132,19 @@ void worm::load(alps::hdf5::archive &ar)
     }
     return end;
   };
+
+  // load params
+  std::vector<double> params;
+  ar["checkpoint/site_arrays"] >> params;
+  std::size_t Nbonds = MyLatt->get_Nbonds();
+  std::size_t Ns = static_cast<std::size_t>(Nsites);
+  std::vector<std::size_t> dims{Nbonds, Ns, Ns, Nbonds};
+
+  MyModel->user_set_params(params, dims);
+
+  int extension_sweeps;
+  ar["/parameters/extension_sweeps"] >> extension_sweeps;
+  total_sweeps = extension_sweeps;
 
   std::string engine_str;
   std::vector<double> wind_vec;
