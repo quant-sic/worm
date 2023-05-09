@@ -3,16 +3,22 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import h5py
-from typing import Optional
+from typing import Optional, Union
+import os
+from tqdm import tqdm
+from copy import deepcopy
+from .io import create_logger
 from collections import defaultdict
+
+log = create_logger(__name__)
+
 
 @dataclass
 class WormInputParameters:
-
-    mu: np.ndarray
-    t_hop:float = 1.0
-    U_on:float = 4.0
-    V_nn:float = 0.0
+    mu: Union[np.ndarray, float]
+    t_hop: Union[np.ndarray, float] = 1.0
+    U_on: Union[np.ndarray, float] = 4.0
+    V_nn: Union[np.ndarray, float] = 0.0
     model: str = "BoseHubbard"
     runtimelimit: int = 10000
     sweeps: int = 25000
@@ -40,80 +46,128 @@ class WormInputParameters:
     p_glueworm: float = 0.3
 
     h5_path: Optional[Path] = None
+    checkpoint: Optional[Path] = None
+    outputfile: Optional[Path] = None
 
     @classmethod
-    def from_ini(cls, ini_path: Path):
-
+    def from_dir(cls, save_dir_path: Path):
         # Read ini file
-        with open(ini_path, "r") as f:
+        with open(save_dir_path / "parameters.ini", "r") as f:
             lines = f.readlines()
 
-        # Create dictionary
+        # Fill dictionary for ini parameters
         params = {}
         for line in lines:
             if not line.startswith("#"):
-                key, value = line.split("=")
-                params[key.strip()] = value.strip()
+                key, value = map(lambda s: s.strip(), line.split("="))
+
+                if key in cls.__dataclass_fields__.keys():
+                    params[key] = value
+
+        # read in h5 site dependent arrays
+        with h5py.File(save_dir_path / "parameters.h5", "r") as file:
+            for name in ("mu", "t_hop", "U_on", "V_nn"):
+                params[name] = file[f"/{name}"][()]
 
         # Create input parameters
         return cls(**params)
-    
+
     def save_h5(self):
-    
         if self.h5_path is None:
-            raise RuntimeError("h5_path must be set")        
+            raise RuntimeError("h5_path must be set")
 
         # create parent directory if it does not exist
         self.h5_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Create h5 file
-        with h5py.File(self.h5_path, 'w') as file:
-            file["/mu"] = self.mu.flatten()
-            file["/t_hop"] = self.t_hop
-            file["/U_on"] = self.U_on
-            file["/V_nn"] = self.V_nn
+        with h5py.File(self.h5_path, "w") as file:
+            for name, attribute in (
+                ("mu", self.mu),
+                ("t_hop", self.t_hop),
+                ("U_on", self.U_on),
+                ("V_nn", self.V_nn),
+            ):
+                file[f"/{name}"] = (
+                    attribute if isinstance(attribute, float) else attribute.flatten()
+                )
 
-    def to_ini(self,checkpoint,outputfile,save_path:Path):
+    @property
+    def ini_path(self):
+        if self._ini_path is None:
+            raise RuntimeError(
+                "ini_path must be set. By saving the parameters to a directory, the ini_path is set automatically."
+            )
+        else:
+            return self._ini_path
 
+    @ini_path.setter
+    def ini_path(self, ini_path: Path):
+        self._ini_path = ini_path
+
+    def to_ini(self, checkpoint, outputfile, save_path: Path):
         # create parent directory if it does not exist
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Create ini file
         with open(save_path, "w") as f:
-
             for key in self.__dataclass_fields__.keys():
-                if not key=="mu":
+                if not (
+                    key in ("mu", "t_hop", "U_on", "V_nn")
+                    and isinstance(self.__getattribute__(key), np.ndarray)
+                ):
                     f.write(f"{key} = {self.__getattribute__(key)}\n")
-            
+
             if self.h5_path is None:
-                raise RuntimeError("h5_path must be set")        
-            else:        
+                raise RuntimeError("h5_path must be set")
+            else:
                 f.write(f"site_arrays = {self.h5_path}\n")
 
-            f.write(f"outputfile = {outputfile}\n")
-            f.write(f"checkpoint = {checkpoint}\n")
+    def save(
+        self,
+        save_dir_path: Path,
+        checkpoint: Optional[Path] = None,
+        outputfile: Optional[Path] = None,
+    ):
+        # create parent directory if it does not exist
+        save_dir_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.outputfile = (
+            save_dir_path / "output.h5" if outputfile is None else outputfile
+        )
+        self.checkpoint = (
+            save_dir_path / "checkpoint.h5" if checkpoint is None else checkpoint
+        )
+
+        self.h5_path = save_dir_path / "parameters.h5"
+        self.ini_path = save_dir_path / "parameters.ini"
+
+        # Create ini file
+        self.to_ini(
+            save_path=self.ini_path,
+            checkpoint=self.checkpoint,
+            outputfile=self.outputfile,
+        )
+        self.save_h5()
 
 
 @dataclass
 class WormOutput:
-
     out_file_path: Path
 
     @property
     def observables(self):
-        
-        h5_file = h5py.File(self.out_file_path,'r')
+        h5_file = h5py.File(self.out_file_path, "r")
 
         observables_dict = {}
 
         observables_dict = defaultdict(dict)
 
         for obs, obs_dataset in h5_file["simulation/results"].items():
-            for measure,value in obs_dataset.items():
-                if isinstance(value,h5py.Dataset):
+            for measure, value in obs_dataset.items():
+                if isinstance(value, h5py.Dataset):
                     observables_dict[obs][measure] = value[()]
-                
-                elif isinstance(value,h5py.Group):
+
+                elif isinstance(value, h5py.Group):
                     observables_dict[obs][measure] = {}
                     for sub_measure, sub_value in value.items():
                         observables_dict[obs][measure][sub_measure] = sub_value[()]
@@ -122,37 +176,131 @@ class WormOutput:
 
 
 class WormSimulation(object):
-
-    def __init__(self, input_parameters: WormInputParameters, worm_executable: Path, save_dir, njobs=1):
-        
+    def __init__(
+        self,
+        input_parameters: WormInputParameters,
+        worm_executable: Path,
+        save_dir: Path,
+    ):
         self.input_parameters = input_parameters
         self.worm_executable = worm_executable
-        self.njobs = njobs
         self.save_dir = save_dir
 
-        self.ini_path = self.save_dir/"parameters.ini"
+    @classmethod
+    def from_dir(cls, dir_path: Path, worm_executable: Path):
+        # Read in parameters
+        input_parameters = WormInputParameters.from_dir(save_dir_path=dir_path)
 
-    def save_parameters(self):
+        # Create simulation
+        return cls(
+            input_parameters=input_parameters,
+            worm_executable=worm_executable,
+            save_dir=dir_path,
+        )
 
-        h5_path = self.save_dir/"parameters.h5"
-        self.input_parameters.h5_path = h5_path
-
-        outputfile = self.save_dir/"output.h5"
-        checkpoint = self.save_dir/"checkpoint.h5"
-
-        self.input_parameters.to_ini(save_path=self.ini_path,checkpoint=checkpoint,outputfile=outputfile)
+    def _save_parameters(self, save_dir: Path):
+        self.input_parameters.save(save_dir_path=save_dir)
         self.input_parameters.save_h5()
 
-    
+    def save_parameters(self):
+        self._save_parameters(save_dir=self.save_dir)
+
+    def _execute_worm(self, inputfile):
+        env = os.environ.copy()
+        env["TMPDIR"] = "/tmp"
+
+        try:
+            process = subprocess.run(
+                ["mpirun", "--use-hwthread-cpus", self.worm_executable, inputfile],
+                env=env,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            log.error(e.stderr.decode("utf-8"))
+            raise e
+
     def run(self):
-
-        subprocess.run(
-        f"export TMPDIR=/tmp && mpirun -np {self.njobs} {self.worm_executable} {self.ini_path}", shell=True)
-
+        self._execute_worm(inputfile=self.input_parameters.ini_path)
 
     def get_results(self):
-        
-        outputfile = self.save_dir/"output.h5"
-        output = WormOutput(out_file_path=outputfile)
+        output = WormOutput(out_file_path=self.input_parameters.outputfile)
 
         return output
+
+    def check_convergence(self, results, error_threshold: float = 0.01):
+        rel_dens_error = (
+            results.observables["Density_Distribution"]["mean"]["error"]
+            / results.observables["Density_Distribution"]["mean"]["value"]
+        )
+
+        converged = (rel_dens_error < error_threshold).all()
+        max_rel_error = rel_dens_error.max()
+
+        n_measurements = results.observables["Density_Distribution"]["count"]
+
+        # get max tau without nans
+        tau_max = np.nanmax(results.observables["Density_Distribution"]["tau"])
+
+        return converged, max_rel_error, n_measurements, tau_max
+
+    def _set_extension_sweeps_in_checkpoints(self, extension_sweeps: int):
+        for checkpoint_file in self.save_dir.glob("checkpoint.h5*"):
+            with h5py.File(checkpoint_file, "r+") as f:
+                try:
+                    f["parameters/extension_sweeps"][...] = extension_sweeps
+                except KeyError:
+                    f["parameters/extension_sweeps"] = extension_sweeps
+
+    def run_until_convergence(self, max_sweeps: int = 10**8, tune: bool = True):
+        # tune measurement interval
+        if tune:
+            measure2 = self.tune()
+            self.input_parameters.Nmeasure2 = measure2
+
+        self.save_parameters()
+
+        self._execute_worm(inputfile=self.input_parameters.ini_path)
+
+        pbar = tqdm(range(10**5, max_sweeps, 5 * 10**5))
+        for sweeps in pbar:
+            self._set_extension_sweeps_in_checkpoints(extension_sweeps=sweeps)
+            self._execute_worm(inputfile=self.input_parameters.checkpoint)
+
+            converged, max_rel_error, n_measurements, tau_max = self.check_convergence(
+                self.get_results()
+            )
+
+            # update tqdm description
+            pbar.set_description(
+                f"Running {sweeps} sweeps. Max rel error: {max_rel_error:.2e}. Measurements: {n_measurements}. Tau_max: {tau_max:.2e}"
+            )
+
+            if converged:
+                break
+
+    def tune(self):
+        tune_dir = self.save_dir / "tune"
+        tune_dir.mkdir(parents=True, exist_ok=True)
+
+        tune_parameters = deepcopy(self.input_parameters)
+
+        # initial thermalization and measurement sweeps
+        tune_parameters.thermalization = 10**4
+        tune_parameters.sweeps = 5 * 10**4
+        tune_parameters.Nmeasure2 = 500
+        tune_parameters.save(save_dir_path=tune_dir)
+
+        self._save_parameters(tune_dir)
+        self._execute_worm(inputfile=tune_parameters.ini_path)
+
+        log.info(tune_parameters.outputfile)
+        converged, max_rel_error, n_measurements, tau_max = self.check_convergence(
+            results=WormOutput(out_file_path=tune_parameters.outputfile)
+        )
+
+        new_measure2 = max(int(tune_parameters.Nmeasure2 * (tau_max / 2)), 10)
+        log.info(f"New Nmeasure2: {new_measure2}")
+
+        return new_measure2
