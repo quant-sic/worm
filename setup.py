@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-from setuptools import setup, find_packages
+import setuptools
 
-setup(
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
+setuptools.setup(
     name="worm",
     version="0.0.1",
-    packages=find_packages(),
+    author="Fabian Dechent",
+    author_email="dechent.fabian@gmail.com",
+    package_dir={"": "worm"},
+    packages=setuptools.find_packages(where="worm"),
+    python_requires=">=3.8",
 )
