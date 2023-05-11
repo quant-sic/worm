@@ -21,7 +21,12 @@ else
     mkdir build
     cd build
 
+    # module load openmpi
+    # module load boost
     # export HDF5_ROOT=~/worm/hdf/HDF5-1.12.1-Linux/HDF_Group/HDF5/1.12.1/
+    # module laod gcc
+    # export CC=/mpcdf/soft/SLE_15/packages/x86_64/gcc/11.2.0/bin/gcc
+    # export CXX=/mpcdf/soft/SLE_15/packages/x86_64/gcc/11.2.0/bin/g++
 
     # if eigen headers are given, use them
     if ! [ -z "$1" ]; then
