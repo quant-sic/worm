@@ -210,8 +210,15 @@ class WormSimulation(object):
         env["TMPDIR"] = "/tmp"
 
         try:
+            # process = subprocess.run(
+            #     ["mpirun", "--use-hwthread-cpus", self.worm_executable, inputfile],
+            #     env=env,
+            #     stderr=subprocess.PIPE,
+            #     stdout=subprocess.PIPE,
+            #     check=True,
+            # )
             process = subprocess.run(
-                ["mpirun", "--use-hwthread-cpus", self.worm_executable, inputfile],
+                ["mpirun", "-np 10", self.worm_executable, inputfile],
                 env=env,
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE,
