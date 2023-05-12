@@ -218,7 +218,7 @@ class WormSimulation(object):
             #     check=True,
             # )
             process = subprocess.run(
-                ["mpirun", "-np 10", self.worm_executable, inputfile],
+                ["mpirun", "-n", 10, self.worm_executable, inputfile],
                 env=env,
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE,
