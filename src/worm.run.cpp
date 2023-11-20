@@ -71,5 +71,9 @@ int main(int argc, char **argv)
   ar["/parameters"] << parameters;
   ar["/simulation/results"] << results;
 
+  // put worm densities into the archive
+  std::vector<std::vector<double>> worm_densities = sim.get_densities();
+  ar["/simulation/densities"] << worm_densities;
+
   return 0;
 }

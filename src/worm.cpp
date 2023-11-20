@@ -147,19 +147,20 @@ worm::worm(parameters_type const &parameters, std::size_t seed_offset) : alps::m
       << alps::accumulators::LogBinningAccumulator<double>("Potential_Energy")
       << alps::accumulators::LogBinningAccumulator<double>("Number_of_particles")
       << alps::accumulators::LogBinningAccumulator<double>("Number_of_particles_squared")
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("Density_Distribution")
+      << alps::accumulators::FullBinningAccumulator<vector<double>>("Density_Distribution")
       // #ifdef UNISYS
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("Density_Matrix")
+      // << alps::accumulators::LogBinningAccumulator<vector<double>>("Density_Matrix")
       //<< alps::accumulators::LogBinningAccumulator<vector<double> >("Density_Matrix2")
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun")
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun_local_0")
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun_local_1")
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("Density_Distribution_squared")
+      // << alps::accumulators::LogBinningAccumulator<vector<double>>("DensDens_CorrFun")
+      << alps::accumulators::FullBinningAccumulator<vector<double>>("DensDens_CorrFun_local_0")
+      << alps::accumulators::FullBinningAccumulator<vector<double>>("DensDens_CorrFun_local_1")
+      << alps::accumulators::FullBinningAccumulator<vector<double>>("Density_Distribution_squared")
 
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("Winding_number_squared")
+      << alps::accumulators::LogBinningAccumulator<vector<double>>("Winding_number_squared");
+
 // #endif
 #ifdef CAN_WINDOW
-      << alps::accumulators::LogBinningAccumulator<vector<double>>("Greenfun_p0_tau")
+  << alps::accumulators::LogBinningAccumulator<vector<double>>("Greenfun_p0_tau")
 #endif
       ;
   // #ifdef UNISYS
@@ -484,9 +485,9 @@ void worm::force_reset_statistics()
     reset(measurements["Number_of_particles_squared"]);
     reset(measurements["Density_Distribution"]);
     // #ifdef UNISYS
-    reset(measurements["Density_Matrix"]);
+    // reset(measurements["Density_Matrix"]);
     // reset(measurements["Density_Matrix2"]);
-    reset(measurements["DensDens_CorrFun"]);
+    // reset(measurements["DensDens_CorrFun"]);
     reset(measurements["DensDens_CorrFun_local_0"]);
     reset(measurements["DensDens_CorrFun_local_1"]);
     reset(measurements["Density_Distribution_squared"]);
@@ -540,7 +541,7 @@ void worm::measure_corrfun()
     }
 
     hist_dd_local_0[i] = dens_at_i * state_eval[dummy_it[MyLatt->nb(i, 0)]->before()];
-    hist_dd_local_1[1] = dens_at_i * state_eval[dummy_it[MyLatt->nb(i, 1)]->before()];
+    hist_dd_local_1[i] = dens_at_i * state_eval[dummy_it[MyLatt->nb(i, 1)]->before()];
     dens_distr[i] = dens_at_i;
     hist_dd_squared[i] = dens_at_i * dens_at_i;
   }
@@ -548,15 +549,18 @@ void worm::measure_corrfun()
   vector<double> hist_dm(hist_densmat.size());
   // vector<double> hist_dm2(hist_densmat.size());
   // double norm = av_dens_Nmeasure2 * 1. / Nmeasure2 * Nmeasure * 1. / Nsites;
-  for (size_t i = 0; i < hist_dm.size(); i++)
-  {
-    hist_dm[i] = hist_densmat[i] * hist_dm_fac / Nmeasure2;
-  }
+  // for (size_t i = 0; i < hist_dm.size(); i++)
+  // {
+  //   hist_dm[i] = hist_densmat[i] * hist_dm_fac / Nmeasure2;
+  // }
+
+  // add dens_distr to vector of densities
+  densities.push_back(dens_distr);
 
   measurements["Density_Distribution"] << dens_distr;
-  measurements["Density_Matrix"] << hist_dm;
+  // measurements["Density_Matrix"] << hist_dm;
   // measurements["Density_Matrix2"] << hist_dm2;
-  measurements["DensDens_CorrFun"] << hist_dd;
+  // measurements["DensDens_CorrFun"] << hist_dd;
   measurements["DensDens_CorrFun_local_0"] << hist_dd_local_0;
   measurements["DensDens_CorrFun_local_1"] << hist_dd_local_1;
 

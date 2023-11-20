@@ -14,6 +14,9 @@
 #include <alps/hdf5/vector.hpp>
 #include <alps/hdf5/multi_array.hpp>
 #include <alps/accumulators.hpp>
+#include <alps/alea.hpp>
+#include <alps/alea/autocorr.hpp>
+#include <alps/alea/mean.hpp>
 #include <alps/mc/api.hpp>
 #include <alps/mc/stop_callback.hpp>
 
@@ -196,6 +199,17 @@ public:
   void measure_Gpt();
 #endif
 
+  // getter for densities
+  std::vector<std::vector<double>> get_densities() const
+  {
+    return densities;
+  }
+  // setter for densities
+  void set_densities(std::vector<std::vector<double>> const &densities_)
+  {
+    densities = densities_;
+  }
+
 protected:
   unsigned long sweeps;
   unsigned long thermalization_sweeps;
@@ -321,6 +335,13 @@ private:
   double hist_dm_fac;
   // #ifdef UNISYS
   std::vector<double> hist_densmat;
+
+  // Define accumulators
+  // alps::alea::mean_acc<vector<double>> mean_acc;
+  // alps::alea::autocorr_acc<vector<double>> autocorr_acc;
+
+  std::vector<std::vector<double>> densities;
+
   // #endif
   std::vector<size_t> counter;
 #ifdef CAN_WINDOW

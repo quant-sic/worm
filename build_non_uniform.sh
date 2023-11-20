@@ -21,7 +21,14 @@ else
     mkdir build
     cd build
 
-    # export HDF5_ROOT=~/worm/hdf/HDF5-1.12.1-Linux/HDF_Group/HDF5/1.12.1/
+    # module load openmpi
+    # module load boost
+    # export HDF5_ROOT=~/paper/hdf/HDF5-1.12.1-Linux/HDF_Group/HDF5/1.12.1/
+    # module load gcc
+    # export CC=/mpcdf/soft/SLE_15/packages/x86_64/gcc/11.2.0/bin/gcc
+    # export CXX=/mpcdf/soft/SLE_15/packages/x86_64/gcc/11.2.0/bin/g++
+
+    # /opt/homebrew/Cellar/eigen/3.4.0_1/include/eigen3
 
     # if eigen headers are given, use them
     if ! [ -z "$1" ]; then

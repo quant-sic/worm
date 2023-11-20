@@ -41,6 +41,13 @@ int main(int argc, char **argv)
     {
       std::cout << "# Restoring checkpoint from " << checkpoint_file << " on rank " << rank << std::endl;
       sim.load(checkpoint_file);
+
+      // read previous densities from output file
+      std::string output_file = parameters["outputfile"].as<std::string>();
+      alps::hdf5::archive ar(output_file, "r");
+      std::vector<std::vector<double>> worm_densities;
+      ar["/simulation/densities"] >> worm_densities;
+      sim.set_densities(worm_densities);
     }
     else
     {
@@ -85,6 +92,10 @@ int main(int argc, char **argv)
       alps::hdf5::archive ar(output_file, "w");
       ar["/parameters"] << parameters;
       ar["/simulation/results"] << results;
+
+      // put worm densities into the archive
+      std::vector<std::vector<double>> worm_densities = sim.get_densities();
+      ar["/simulation/densities"] << worm_densities;
 
       std::cout << "# Finished.\n";
     }
