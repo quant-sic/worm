@@ -23,6 +23,7 @@ int main(int argc, char **argv)
     }
     alps::parameters_type<alps::mcmpiadapter<worm>>::type parameters(argc, argv, comm);
     alps::mcmpiadapter<worm>::define_parameters(parameters);
+
     if (parameters.help_requested(std::cout))
     {
       exit(0);
