@@ -98,7 +98,7 @@ int main(int argc, char **argv)
       std::vector<std::vector<double>> worm_densities = sim.get_densities();
       ar["/simulation/densities"] << worm_densities;
 
-      std::cout << "# Finished.\n";
+      std::cout << "## Finished.\n";
     }
     return 0;
   }
